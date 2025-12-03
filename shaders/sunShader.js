@@ -104,13 +104,14 @@ void main() {
     float fresnel = 1.0 - abs(viewDot);
     
     // Color Palette
-    vec3 cCenter = vec3(1.0, 0.35, 0.0);  // Deep Orange (Center)
-    vec3 cMid = vec3(1.0, 0.8, 0.2);      // Yellow (Mid-way)
-    vec3 cRim = vec3(1.0, 1.0, 0.9);      // White (Edge)
+    vec3 cCenter = vec3(1.0, 0.3, 0.0);   // Deep Orange (Center)
+    vec3 cMid = vec3(1.0, 0.6, 0.1);      // Orange-Yellow (Mid-way)
+    vec3 cRim = vec3(1.0, 0.9, 0.6);      // Pale Yellow (Edge)
     
     // Radial Gradient: Center(Orange) -> Mid(Yellow) -> Edge(White)
-    vec3 baseColor = mix(cCenter, cMid, smoothstep(0.0, 0.7, fresnel));
-    baseColor = mix(baseColor, cRim, smoothstep(0.7, 1.0, fresnel));
+    // Pushed orange further out (0.0 to 0.8)
+    vec3 baseColor = mix(cCenter, cMid, smoothstep(0.0, 0.8, fresnel));
+    baseColor = mix(baseColor, cRim, smoothstep(0.8, 1.0, fresnel));
     
     // Apply Noise to texture (modulate brightness)
     // Noise range is roughly -1 to 1. Map to 0.8 to 1.2
@@ -184,15 +185,15 @@ void main() {
     if (alpha < 0.01) discard;
     
     // Color Palette matching Sun Surface
-    vec3 cCenter = vec3(1.0, 0.35, 0.0);  // Deep Orange
-    vec3 cEdge = vec3(1.0, 1.0, 0.9);     // White/Yellow
+    vec3 cCenter = vec3(1.0, 0.3, 0.0);   // Deep Orange
+    vec3 cEdge = vec3(1.0, 0.9, 0.6);     // Pale Yellow
     
     // Mix based on position on sphere (Fresnel)
     // Center flares are orange, Edge flares are white
-    vec3 baseColor = mix(cCenter, cEdge, smoothstep(0.5, 1.0, vFresnel));
+    vec3 baseColor = mix(cCenter, cEdge, smoothstep(0.6, 1.0, vFresnel));
     
     // Add a little internal heat to the flare itself
-    vec3 cHot = vec3(1.0, 0.9, 0.5);
+    vec3 cHot = vec3(1.0, 0.6, 0.3); // Less white, more orange-hot
     vec3 finalColor = mix(baseColor, cHot, smoothstep(0.5, 1.0, shape) * 0.5);
     
     gl_FragColor = vec4(finalColor, alpha);

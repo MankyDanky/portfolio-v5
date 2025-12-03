@@ -201,6 +201,7 @@ function setMode(mode) {
         sunFlares.visible = false;
         sunLight.visible = false;
         bloomPass.enabled = false;
+        rgbShiftPass.uniforms[ 'amount' ].value = 0.0010;
         
         planets.forEach(p => {
             p.mesh.material = p.materialBasic;
@@ -215,6 +216,7 @@ function setMode(mode) {
         sunFlares.visible = true;
         sunLight.visible = true;
         bloomPass.enabled = true;
+        rgbShiftPass.uniforms[ 'amount' ].value = 0.0;
         
         planets.forEach(p => {
             p.mesh.material = p.materialShader;
