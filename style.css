@@ -19,7 +19,7 @@ canvas {
 #overlay h1 {
     margin: 0 0 15px 0;
     font-size: 1rem;
-    letter-spacing: 0.3rem;
+    letter-spacing: 0.4rem;
     font-weight: 700;
     pointer-events: auto;
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
