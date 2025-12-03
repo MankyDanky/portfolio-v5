@@ -9,6 +9,7 @@ import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
 import { simpleSkyboxVertex, simpleSkyboxFragment } from './shaders/simpleSkybox.js';
 import { nebulaSkyboxVertex, nebulaSkyboxFragment } from './shaders/nebulaSkybox.js';
 import { planetVertex, planetFragment } from './shaders/planetShader.js';
+import { sunVertex, sunFragment, flareVertex, flareFragment } from './shaders/sunShader.js';
 
 const scene = new THREE.Scene();
 
@@ -60,11 +61,58 @@ const solarSystem = new THREE.Group();
 scene.add(solarSystem);
 
 // --- Sun ---
-const sunGeometry = new THREE.SphereGeometry( 16, 32, 32 ); 
+const sunGeometry = new THREE.SphereGeometry( 16, 64, 64 ); 
 const sunMaterialBasic = new THREE.MeshBasicMaterial( { color: '#ffb642' } ); 
-const sunMaterialBloom = new THREE.MeshBasicMaterial( { color: '#ffaa00' } ); // Brighter for bloom
+
+// Realistic Sun Material
+const sunMaterialRealistic = new THREE.ShaderMaterial({
+    vertexShader: sunVertex,
+    fragmentShader: sunFragment,
+    uniforms: {
+        time: { value: 0 }
+    }
+});
+
 const sun = new THREE.Mesh( sunGeometry, sunMaterialBasic );
 solarSystem.add( sun );
+
+// Sun Flares (Particles)
+const flareGeometry = new THREE.BufferGeometry();
+const flareCount = 3000;
+const flarePositions = [];
+const flareRandoms = [];
+
+for (let i = 0; i < flareCount; i++) {
+    // Random point on sphere surface
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 16; // Sun radius
+    
+    const x = r * Math.sin(phi) * Math.cos(theta);
+    const y = r * Math.sin(phi) * Math.sin(theta);
+    const z = r * Math.cos(phi);
+    
+    flarePositions.push(x, y, z);
+    flareRandoms.push(Math.random(), Math.random(), Math.random());
+}
+
+flareGeometry.setAttribute('position', new THREE.Float32BufferAttribute(flarePositions, 3));
+flareGeometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(flareRandoms, 3));
+
+const flareMaterial = new THREE.ShaderMaterial({
+    vertexShader: flareVertex,
+    fragmentShader: flareFragment,
+    uniforms: {
+        time: { value: 0 }
+    },
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true
+});
+
+const sunFlares = new THREE.Points(flareGeometry, flareMaterial);
+sunFlares.visible = false;
+solarSystem.add(sunFlares);
 
 // Sun Light (Mode 2)
 const sunLight = new THREE.PointLight( 0xffffff, 2, 1000 );
@@ -150,6 +198,7 @@ function setMode(mode) {
         // Mode 1: Simple
         skybox.material = simpleSkyboxMaterial;
         sun.material = sunMaterialBasic;
+        sunFlares.visible = false;
         sunLight.visible = false;
         bloomPass.enabled = false;
         
@@ -162,7 +211,8 @@ function setMode(mode) {
     } else {
         // Mode 2: Realistic
         skybox.material = nebulaSkyboxMaterial;
-        sun.material = sunMaterialBloom;
+        sun.material = sunMaterialRealistic;
+        sunFlares.visible = true;
         sunLight.visible = true;
         bloomPass.enabled = true;
         
@@ -181,6 +231,12 @@ document.getElementById('mode2').addEventListener('click', () => setMode(2));
 
 function animate() {
 	requestAnimationFrame( animate );
+    
+    const time = performance.now() * 0.001;
+    
+    // Update uniforms
+    sunMaterialRealistic.uniforms.time.value = time;
+    flareMaterial.uniforms.time.value = time;
     
     planets.forEach(p => {
         p.orbit.rotation.y += p.speed;
