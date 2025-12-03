@@ -90,8 +90,15 @@ float snoise(vec3 v){
 
 void main() {
     // Procedural Texture
-    float n = snoise(vObjectPosition * 0.5); // Scale noise
-    float mixVal = smoothstep(-0.5, 0.5, n);
+    float n = snoise(vObjectPosition * 0.75); // Slightly higher frequency for detail
+    
+    // Smoother blend (wider range)
+    float noiseVal = smoothstep(-1.0, 1.0, n);
+    
+    // Make colors closer together by limiting the mix range
+    // Instead of 0.0 to 1.0, we use 0.25 to 0.75 to reduce contrast
+    float mixVal = noiseVal * 0.5 + 0.25;
+    
     vec3 surfaceColor = mix(color1, color2, mixVal);
     
     // Lighting
