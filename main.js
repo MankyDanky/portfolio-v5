@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const scene = new THREE.Scene();
+scene.background = new THREE.Color('#111a25');
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 
 const renderer = new THREE.WebGLRenderer();
@@ -10,7 +11,7 @@ document.body.appendChild( renderer.domElement );
 
 // Create a sphere
 const geometry = new THREE.SphereGeometry( 1, 32, 16 ); 
-const material = new THREE.MeshBasicMaterial( { color: 0x00ff00, wireframe: true } ); 
+const material = new THREE.MeshBasicMaterial( { color: '#ba8a3e' } ); 
 const sphere = new THREE.Mesh( geometry, material );
 scene.add( sphere );
 
