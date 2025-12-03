@@ -105,7 +105,7 @@ void main() {
     color = mix(color, hot, smoothstep(0.4, 0.8, noise));
     
     // Add some emission intensity for bloom
-    gl_FragColor = vec4(color * 1.5, 1.0);
+    gl_FragColor = vec4(color * 1.0, 1.0);
 }
 `;
 
@@ -121,13 +121,13 @@ void main() {
     vec3 normal = normalize(pos);
     
     // Noise for flare movement
-    float n = snoise(pos * 0.05 + vec3(0.0, time * 0.5, 0.0));
+    float n = snoise(pos * 0.2 + vec3(0.0, time * 0.5, 0.0));
     
     // Create spikes/flares
     float spike = smoothstep(0.0, 1.0, n);
     
     // Push particles out based on noise
-    pos += normal * (spike * 10.0 + aRandom.x * 2.0);
+    pos += normal * (spike * 2.0 + aRandom.x * 1.0);
     
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
