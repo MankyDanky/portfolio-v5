@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -37,7 +38,7 @@ void main() {
 }
 `;
 
-const skyboxGeometry = new THREE.SphereGeometry( 1500, 60, 40 );
+const skyboxGeometry = new THREE.SphereGeometry( 500000, 60, 40 );
 const skyboxMaterial = new THREE.ShaderMaterial({
     vertexShader: vertexShader,
     fragmentShader: fragmentShader,
@@ -46,7 +47,7 @@ const skyboxMaterial = new THREE.ShaderMaterial({
 const skybox = new THREE.Mesh( skyboxGeometry, skyboxMaterial );
 scene.add( skybox );
 
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 2000 );
+const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000000 );
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
@@ -111,10 +112,12 @@ planetData.forEach(data => {
     planets.push({ mesh: planet, orbit: orbit, speed: data.speed });
 });
 
-solarSystem.rotation.x = 0.4;
-solarSystem.rotation.z = 0.4;
+// Add OrbitControls
+const controls = new OrbitControls( camera, renderer.domElement );
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
 
-camera.position.set(0, 70, 140);
+camera.position.set(0, 140, 280);
 camera.lookAt(0, 0, 0);
 
 function animate() {
@@ -123,6 +126,8 @@ function animate() {
     planets.forEach(p => {
         p.orbit.rotation.y += p.speed;
     });
+
+    controls.update();
 
 	composer.render();
 }
