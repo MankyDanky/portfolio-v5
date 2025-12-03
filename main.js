@@ -8,8 +8,8 @@ import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
 
 import { simpleSkyboxVertex, simpleSkyboxFragment } from './shaders/simpleSkybox.js';
 import { nebulaSkyboxVertex, nebulaSkyboxFragment } from './shaders/nebulaSkybox.js';
-import { planetVertex, planetFragment } from './shaders/planetShader.js';
-import { sunVertex, sunFragment, flareVertex, flareFragment } from './shaders/sunShader.js';
+import { planetVertexToon, planetFragmentToon } from './shaders/planetShader.js';
+import { sunVertexToon, sunFragmentToon, flareVertexToon, flareFragmentToon } from './shaders/sunShader.js';
 
 const scene = new THREE.Scene();
 
@@ -66,8 +66,8 @@ const sunMaterialBasic = new THREE.MeshBasicMaterial( { color: '#ffb642' } );
 
 // Realistic Sun Material
 const sunMaterialRealistic = new THREE.ShaderMaterial({
-    vertexShader: sunVertex,
-    fragmentShader: sunFragment,
+    vertexShader: sunVertexToon,
+    fragmentShader: sunFragmentToon,
     uniforms: {
         time: { value: 0 }
     }
@@ -100,8 +100,8 @@ flareGeometry.setAttribute('position', new THREE.Float32BufferAttribute(flarePos
 flareGeometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(flareRandoms, 3));
 
 const flareMaterial = new THREE.ShaderMaterial({
-    vertexShader: flareVertex,
-    fragmentShader: flareFragment,
+    vertexShader: flareVertexToon,
+    fragmentShader: flareFragmentToon,
     uniforms: {
         time: { value: 0 }
     },
@@ -135,6 +135,19 @@ const planetData = [
 
 const planets = [];
 
+// Helper to create outline mesh
+function createOutline(geometry) {
+    const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
+    const outlineMesh = new THREE.Mesh(geometry, outlineMaterial);
+    outlineMesh.scale.multiplyScalar(1.05); // Scale up slightly
+    outlineMesh.visible = false; // Hidden by default
+    return outlineMesh;
+}
+
+// Sun Outline
+const sunOutline = createOutline(sunGeometry);
+sun.add(sunOutline);
+
 planetData.forEach(data => {
     // Planet Mesh
     const geometry = new THREE.SphereGeometry( data.radius, 32, 16 );
@@ -144,8 +157,8 @@ planetData.forEach(data => {
     
     // Mode 2 Material (Shader)
     const materialShader = new THREE.ShaderMaterial({
-        vertexShader: planetVertex,
-        fragmentShader: planetFragment,
+        vertexShader: planetVertexToon,
+        fragmentShader: planetFragmentToon,
         uniforms: {
             color1: { value: new THREE.Color(data.color) },
             color2: { value: new THREE.Color(data.color2) },
@@ -154,6 +167,10 @@ planetData.forEach(data => {
     });
 
     const planet = new THREE.Mesh( geometry, materialBasic );
+    
+    // Outline for Planet
+    const outline = createOutline(geometry);
+    planet.add(outline);
     
     // Orbit Group (to rotate around sun)
     const orbit = new THREE.Object3D();
@@ -178,7 +195,8 @@ planetData.forEach(data => {
         orbit: orbit, 
         speed: data.speed,
         materialBasic: materialBasic,
-        materialShader: materialShader
+        materialShader: materialShader,
+        outline: outline
     });
 });
 
@@ -203,23 +221,31 @@ function setMode(mode) {
         bloomPass.enabled = false;
         rgbShiftPass.uniforms[ 'amount' ].value = 0.0010;
         
+        // Hide Outlines
+        sunOutline.visible = false;
+        
         planets.forEach(p => {
             p.mesh.material = p.materialBasic;
+            p.outline.visible = false;
         });
         
         document.getElementById('mode1').classList.add('active');
         document.getElementById('mode2').classList.remove('active');
     } else {
-        // Mode 2: Realistic
+        // Mode 2: Toon / Cel Shaded
         skybox.material = nebulaSkyboxMaterial;
         sun.material = sunMaterialRealistic;
-        sunFlares.visible = true;
+        sunFlares.visible = false; // No flares in toon mode
         sunLight.visible = true;
-        bloomPass.enabled = true;
+        bloomPass.enabled = false; // No bloom in toon mode
         rgbShiftPass.uniforms[ 'amount' ].value = 0.0;
+        
+        // Show Outlines
+        sunOutline.visible = true;
         
         planets.forEach(p => {
             p.mesh.material = p.materialShader;
+            p.outline.visible = true;
         });
         
         document.getElementById('mode1').classList.remove('active');

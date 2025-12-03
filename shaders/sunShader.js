@@ -1,4 +1,4 @@
-// Simplex 3D Noise
+// Simplex 3D Noise - Updated for Toon Mode
 const noiseGLSL = `
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
 vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
@@ -65,137 +65,41 @@ float snoise(vec3 v){
 }
 `;
 
-export const sunVertex = `
-varying vec2 vUv;
-varying vec3 vPosition;
+export const sunVertexToon = `
 varying vec3 vNormal;
 varying vec3 vViewPosition;
 
 void main() {
-    vUv = uv;
     vNormal = normalize(normalMatrix * normal);
-    vPosition = position;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     vViewPosition = -mvPosition.xyz;
     gl_Position = projectionMatrix * mvPosition;
 }
 `;
 
-export const sunFragment = `
-uniform float time;
-varying vec2 vUv;
-varying vec3 vPosition;
+export const sunFragmentToon = `
 varying vec3 vNormal;
 varying vec3 vViewPosition;
 
-${noiseGLSL}
-
 void main() {
-    // Animated noise for plasma effect
-    float n1 = snoise(vPosition * 0.15 + vec3(0.0, time * 0.8, 0.0));
-    float n2 = snoise(vPosition * 0.3 - vec3(time * 0.8, 0.0, 0.0));
-    float n3 = snoise(vPosition * 0.6 + vec3(0.0, 0.0, time * 1.5));
-    
-    float noise = n1 * 0.5 + n2 * 0.3 + n3 * 0.2;
-    
-    // Fresnel Effect (0.0 at center, 1.0 at edge)
     vec3 viewDir = normalize(vViewPosition);
     float viewDot = dot(vNormal, viewDir);
     float fresnel = 1.0 - abs(viewDot);
     
-    // Color Palette
-    vec3 cCenter = vec3(1.0, 0.3, 0.0);   // Deep Orange (Center)
-    vec3 cMid = vec3(1.0, 0.6, 0.1);      // Orange-Yellow (Mid-way)
-    vec3 cRim = vec3(1.0, 0.9, 0.6);      // Pale Yellow (Edge)
+    // Toon Fresnel: Stepped
+    // 2 steps: Base and Rim
+    float rim = step(0.8, fresnel);
     
-    // Radial Gradient: Center(Orange) -> Mid(Yellow) -> Edge(White)
-    // Pushed orange further out (0.0 to 0.8)
-    vec3 baseColor = mix(cCenter, cMid, smoothstep(0.0, 0.8, fresnel));
-    baseColor = mix(baseColor, cRim, smoothstep(0.8, 1.0, fresnel));
+    vec3 baseColor = vec3(1.0, 0.6, 0.0); // Solid Orange
+    vec3 rimColor = vec3(1.0, 0.9, 0.5);  // Pale Yellow Rim
     
-    // Apply Noise to texture (modulate brightness)
-    // Noise range is roughly -1 to 1. Map to 0.8 to 1.2
-    float brightness = 1.0 + noise * 0.3;
+    vec3 color = mix(baseColor, rimColor, rim);
     
-    vec3 finalColor = baseColor * brightness;
-    
-    // Output
-    gl_FragColor = vec4(finalColor, 1.0);
+    gl_FragColor = vec4(color, 1.0);
 }
 `;
 
-export const flareVertex = `
-uniform float time;
-attribute vec3 aRandom;
-varying vec3 vRandom;
-varying float vFresnel;
+// Flares removed for Toon Mode
+export const flareVertexToon = `void main() { gl_Position = vec4(0.0); }`;
+export const flareFragmentToon = `void main() { discard; }`;
 
-${noiseGLSL}
-
-void main() {
-    vRandom = aRandom;
-    vec3 pos = position;
-    vec3 normal = normalize(pos);
-    
-    // Noise for flare movement
-    float n = snoise(pos * 0.2 + vec3(0.0, time * 0.5, 0.0));
-    
-    // Create spikes/flares
-    float spike = smoothstep(0.0, 1.0, n);
-    
-    // Push particles out based on noise - REDUCED AMPLITUDE
-    pos += normal * (spike * 0.6 + aRandom.x * 0.3);
-    
-    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
-    
-    // Calculate Fresnel for color (View Space)
-    vec3 viewDir = normalize(-mvPosition.xyz);
-    vec3 viewNormal = normalize(normalMatrix * normal);
-    float viewDot = max(0.0, dot(viewDir, viewNormal));
-    vFresnel = 1.0 - viewDot; // 0 at center, 1 at edge
-    
-    // Size attenuation
-    gl_PointSize = (40.0 * aRandom.y + 20.0) * (100.0 / -mvPosition.z);
-}
-`;
-
-export const flareFragment = `
-uniform float time;
-varying vec3 vRandom;
-varying float vFresnel;
-
-${noiseGLSL}
-
-void main() {
-    vec2 uv = gl_PointCoord - 0.5;
-    float dist = length(uv);
-    
-    if (dist > 0.5) discard;
-    
-    // Dynamic internal noise for shape
-    float n = snoise(vec3(uv * 8.0, time * 2.0 + vRandom.x * 10.0));
-    
-    // Shape sculpting
-    float r = dist * 2.0;
-    float shape = (1.0 - r);
-    shape += n * 0.3;
-    
-    float alpha = smoothstep(0.0, 0.2, shape);
-    if (alpha < 0.01) discard;
-    
-    // Color Palette matching Sun Surface
-    vec3 cCenter = vec3(1.0, 0.3, 0.0);   // Deep Orange
-    vec3 cEdge = vec3(1.0, 0.9, 0.6);     // Pale Yellow
-    
-    // Mix based on position on sphere (Fresnel)
-    // Center flares are orange, Edge flares are white
-    vec3 baseColor = mix(cCenter, cEdge, smoothstep(0.6, 1.0, vFresnel));
-    
-    // Add a little internal heat to the flare itself
-    vec3 cHot = vec3(1.0, 0.6, 0.3); // Less white, more orange-hot
-    vec3 finalColor = mix(baseColor, cHot, smoothstep(0.5, 1.0, shape) * 0.5);
-    
-    gl_FragColor = vec4(finalColor, alpha);
-}
-`;

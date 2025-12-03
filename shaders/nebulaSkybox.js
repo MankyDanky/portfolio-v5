@@ -87,33 +87,23 @@ float snoise(vec3 v){
 void main() {
     vec3 dir = normalize(vWorldPosition);
     
-    // Base noise
-    float n = snoise(dir * 2.0);
-    float n2 = snoise(dir * 5.0 + vec3(10.0));
+    // Low frequency noise for patches
+    float n = snoise(dir * 1.5);
     
-    // Deep space color
-    vec3 color = vec3(0.0, 0.0, 0.02);
+    // Quantize noise into steps for "patches"
+    float patch = step(0.2, n);
     
-    // Nebula colors
-    vec3 purple = vec3(0.2, 0.0, 0.3);
-    vec3 blue = vec3(0.0, 0.1, 0.3);
+    // Solid colors
+    vec3 c1 = vec3(0.05, 0.05, 0.1); // Dark Blue
+    vec3 c2 = vec3(0.1, 0.1, 0.2);   // Lighter Blue Patch
     
-    // Mix based on noise
-    float nebulaMix = smoothstep(0.2, 0.8, n);
-    color = mix(color, purple, nebulaMix * 0.5);
+    vec3 bg = mix(c1, c2, patch);
     
-    float nebulaMix2 = smoothstep(0.3, 0.9, n2);
-    color = mix(color, blue, nebulaMix2 * 0.4);
+    // Stars - High frequency noise
+    float s = snoise(dir * 50.0);
+    float star = step(0.98, s); // Small dots
     
-    // Stars
-    float scale = 300.0;
-    vec3 p = dir * scale;
-    vec3 cell = floor(p);
-    float h = fract(sin(dot(cell, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
-    if (h > 0.995) {
-        float brightness = (h - 0.995) / (1.0 - 0.995);
-        color += vec3(brightness);
-    }
+    vec3 color = bg + vec3(star);
     
     gl_FragColor = vec4(color, 1.0);
 }
