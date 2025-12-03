@@ -2,11 +2,13 @@ export const planetVertex = `
 varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vPosition;
+varying vec3 vObjectPosition;
 
 void main() {
     vUv = uv;
     vNormal = normalize(mat3(modelMatrix) * normal);
     vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+    vObjectPosition = position;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
@@ -19,6 +21,7 @@ uniform vec3 sunPosition;
 varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vPosition;
+varying vec3 vObjectPosition;
 
 // Simplex 3D Noise (Same as skybox for consistency)
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
@@ -87,7 +90,7 @@ float snoise(vec3 v){
 
 void main() {
     // Procedural Texture
-    float n = snoise(vPosition * 0.5); // Scale noise
+    float n = snoise(vObjectPosition * 0.5); // Scale noise
     float mixVal = smoothstep(-0.5, 0.5, n);
     vec3 surfaceColor = mix(color1, color2, mixVal);
     
