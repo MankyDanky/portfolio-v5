@@ -45,8 +45,8 @@ composer.addPass( renderPass );
 
 // Bloom Pass (Mode 2)
 const bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 );
-bloomPass.threshold = 0.2;
-bloomPass.strength = 1.0;
+bloomPass.threshold = 0.5;
+bloomPass.strength = 0.6;
 bloomPass.radius = 0.5;
 bloomPass.enabled = false; // Start disabled
 composer.addPass( bloomPass );

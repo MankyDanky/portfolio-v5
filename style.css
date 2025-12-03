@@ -38,11 +38,17 @@ canvas {
     background: transparent;
     border: 1px solid white;
     color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
     cursor: pointer;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     transition: all 0.3s ease;
+    font-weight: 600;
 }
 
 .mode-btn:hover {
