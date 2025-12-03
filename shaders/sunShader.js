@@ -112,11 +112,12 @@ void main() {
 export const flareVertex = `
 uniform float time;
 attribute vec3 aRandom;
-varying vec3 vColor;
+varying vec3 vRandom;
 
 ${noiseGLSL}
 
 void main() {
+    vRandom = aRandom;
     vec3 pos = position;
     vec3 normal = normalize(pos);
     
@@ -132,28 +133,46 @@ void main() {
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     
-    // Size attenuation
-    gl_PointSize = (20.0 * aRandom.y + 10.0) * (100.0 / -mvPosition.z);
-    
-    // Color based on distance/noise
-    vColor = mix(vec3(1.0, 0.3, 0.0), vec3(1.0, 0.9, 0.5), spike);
+    // Size attenuation - slightly larger to show shape details
+    gl_PointSize = (40.0 * aRandom.y + 20.0) * (100.0 / -mvPosition.z);
 }
 `;
 
 export const flareFragment = `
-varying vec3 vColor;
+uniform float time;
+varying vec3 vRandom;
+
+${noiseGLSL}
 
 void main() {
-    // Soft circular particle
-    vec2 coord = gl_PointCoord - vec2(0.5);
-    float dist = length(coord);
+    vec2 uv = gl_PointCoord - 0.5;
+    float dist = length(uv);
     
     if (dist > 0.5) discard;
     
-    // Soft glow falloff
-    float alpha = 1.0 - (dist * 2.0);
-    alpha = pow(alpha, 1.5);
+    // Dynamic internal noise for shape
+    float n = snoise(vec3(uv * 8.0, time * 2.0 + vRandom.x * 10.0));
     
-    gl_FragColor = vec4(vColor, alpha);
+    // Shape sculpting (erode edges with noise)
+    float r = dist * 2.0; // 0..1
+    float shape = (1.0 - r); // 1 at center, 0 at edge
+    shape += n * 0.3; // Add noise distortion
+    
+    // Soft clipping to create irregular blob shapes
+    float alpha = smoothstep(0.0, 0.2, shape);
+    if (alpha < 0.01) discard;
+    
+    // Color Palette
+    vec3 cRed = vec3(0.9, 0.1, 0.0);
+    vec3 cOrange = vec3(1.0, 0.5, 0.0);
+    vec3 cYellow = vec3(1.0, 0.9, 0.2);
+    vec3 cWhite = vec3(1.0, 1.0, 1.0);
+    
+    // Color mixing based on intensity (hot center, cool edges)
+    vec3 color = mix(cRed, cOrange, smoothstep(0.2, 0.5, shape));
+    color = mix(color, cYellow, smoothstep(0.5, 0.8, shape));
+    color = mix(color, cWhite, smoothstep(0.8, 1.0, shape));
+    
+    gl_FragColor = vec4(color, alpha);
 }
 `;

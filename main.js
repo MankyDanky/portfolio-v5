@@ -47,7 +47,7 @@ composer.addPass( renderPass );
 // Bloom Pass (Mode 2)
 const bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 );
 bloomPass.threshold = 0.5;
-bloomPass.strength = 0.3;
+bloomPass.strength = 0.1;
 bloomPass.radius = 0.5;
 bloomPass.enabled = false; // Start disabled
 composer.addPass( bloomPass );
@@ -78,7 +78,7 @@ solarSystem.add( sun );
 
 // Sun Flares (Particles)
 const flareGeometry = new THREE.BufferGeometry();
-const flareCount = 10000;
+const flareCount = 2000;
 const flarePositions = [];
 const flareRandoms = [];
 
