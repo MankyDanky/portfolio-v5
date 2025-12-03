@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
 
 const scene = new THREE.Scene();
 
@@ -48,12 +52,21 @@ const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
 
+// Post-processing
+const composer = new EffectComposer( renderer );
+const renderPass = new RenderPass( scene, camera );
+composer.addPass( renderPass );
+
+const rgbShiftPass = new ShaderPass( RGBShiftShader );
+rgbShiftPass.uniforms[ 'amount' ].value = 0.0010;
+composer.addPass( rgbShiftPass );
+
 const solarSystem = new THREE.Group();
 scene.add(solarSystem);
 
 // Sun
 const sunGeometry = new THREE.SphereGeometry( 16, 32, 32 ); 
-const sunMaterial = new THREE.MeshBasicMaterial( { color: '#ba8a3e' } ); 
+const sunMaterial = new THREE.MeshBasicMaterial( { color: '#ffb642' } ); 
 const sun = new THREE.Mesh( sunGeometry, sunMaterial );
 solarSystem.add( sun );
 
@@ -111,7 +124,7 @@ function animate() {
         p.orbit.rotation.y += p.speed;
     });
 
-	renderer.render( scene, camera );
+	composer.render();
 }
 
 animate();
@@ -123,4 +136,5 @@ function onWindowResize(){
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize( window.innerWidth, window.innerHeight );
+    composer.setSize( window.innerWidth, window.innerHeight );
 }
