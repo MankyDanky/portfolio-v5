@@ -16,7 +16,7 @@ const scene = new THREE.Scene();
 let currentMode = 1;
 
 // --- Skybox ---
-const skyboxGeometry = new THREE.SphereGeometry( 5000, 60, 40 );
+const skyboxGeometry = new THREE.SphereGeometry( 500000, 60, 40 );
 const simpleSkyboxMaterial = new THREE.ShaderMaterial({
     vertexShader: simpleSkyboxVertex,
     fragmentShader: simpleSkyboxFragment,
@@ -31,7 +31,7 @@ const nebulaSkyboxMaterial = new THREE.ShaderMaterial({
 const skybox = new THREE.Mesh( skyboxGeometry, simpleSkyboxMaterial );
 scene.add( skybox );
 
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 10000 );
+const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000000 );
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
