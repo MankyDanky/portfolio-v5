@@ -100,3 +100,30 @@ body.revealed .curtain.bottom {
     transform: translateY(100%);
 }
 
+/* Enter Overlay */
+#enter-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2000; /* Above curtains */
+    color: white;
+    font-family: 'Open Sans', sans-serif;
+    font-weight: 300;
+    font-size: 24px;
+    letter-spacing: 0.5em;
+    cursor: pointer;
+    transition: opacity 0.5s ease, transform 0.3s ease;
+    text-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+
+#enter-overlay:hover {
+    transform: translate(-50%, -50%);
+    text-shadow: 0 0 20px rgba(255,255,255,0.8);
+}
+
+#enter-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+

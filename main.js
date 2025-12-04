@@ -115,12 +115,107 @@ canvas.addEventListener('mouseleave', () => {
     mouse[2] = 0;
 });
 
-// Trigger curtain reveal on load
-window.addEventListener('load', () => {
-    // Small delay to ensure everything is ready and to make the effect noticeable
+// --- Audio Management ---
+
+const audio = new Audio('piano.mp3');
+audio.loop = true;
+audio.volume = 0; // Start silent
+
+let fadeInterval;
+
+function fadeAudio(targetVolume, duration, callback) {
+    const startVolume = audio.volume;
+    const change = targetVolume - startVolume;
+    const startTime = performance.now();
+
+    clearInterval(fadeInterval);
+
+    fadeInterval = setInterval(() => {
+        const elapsed = performance.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Simple linear fade
+        audio.volume = Math.max(0, Math.min(1, startVolume + (change * progress)));
+
+        if (progress >= 1) {
+            clearInterval(fadeInterval);
+            if (callback) callback();
+        }
+    }, 50);
+}
+
+function playMusic() {
+    // If already playing and fading in, don't restart
+    if (!audio.paused && audio.volume > 0) return;
+
+    const playPromise = audio.play();
+    
+    if (playPromise !== undefined) {
+        playPromise.then(() => {
+            // Fade in to 50% volume over 2 seconds
+            fadeAudio(0.5, 2000);
+        }).catch(error => {
+            console.log("Autoplay prevented. Waiting for interaction.");
+            // Add one-time listener to start on interaction
+            const startOnInteraction = () => {
+                audio.play();
+                fadeAudio(0.5, 2000);
+                window.removeEventListener('click', startOnInteraction);
+                window.removeEventListener('keydown', startOnInteraction);
+                window.removeEventListener('mousemove', startOnInteraction);
+            };
+            window.addEventListener('click', startOnInteraction);
+            window.addEventListener('keydown', startOnInteraction);
+            window.addEventListener('mousemove', startOnInteraction);
+        });
+    }
+}
+
+function pauseMusic() {
+    // Fade out to 0 over 1 second, then pause
+    fadeAudio(0, 1000, () => {
+        audio.pause();
+    });
+}
+
+// Start music when the curtain reveals (using the existing load event timing)
+// window.addEventListener('load', () => {
+//     setTimeout(() => {
+//         playMusic();
+//     }, 500);
+// });
+
+// // Trigger curtain reveal on load
+// window.addEventListener('load', () => {
+//     // Small delay to ensure everything is ready and to make the effect noticeable
+//     setTimeout(() => {
+//         document.body.classList.add('revealed');
+//     }, 500);
+// });
+
+// --- Interaction ---
+
+const enterOverlay = document.getElementById('enter-overlay');
+
+enterOverlay.addEventListener('click', () => {
+    enterOverlay.classList.add('hidden');
+    
+    // Start music immediately on interaction
+    playMusic();
+    
+    // Trigger curtain reveal
     setTimeout(() => {
         document.body.classList.add('revealed');
     }, 200);
+});
+
+// Handle tab switching
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        pauseMusic();
+    } else {
+        playMusic();
+    }
 });
 
 function render() {
