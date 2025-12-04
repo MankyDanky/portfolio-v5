@@ -1,288 +1,125 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
 
-import { simpleSkyboxVertex, simpleSkyboxFragment } from './shaders/simpleSkybox.js';
-import { nebulaSkyboxVertex, nebulaSkyboxFragment } from './shaders/nebulaSkybox.js';
-import { planetVertexToon, planetFragmentToon } from './shaders/planetShader.js';
-import { sunVertexToon, sunFragmentToon, flareVertexToon, flareFragmentToon } from './shaders/sunShader.js';
-
+// --- Scene Setup ---
+const container = document.getElementById('canvas-container');
 const scene = new THREE.Scene();
 
-// --- Mode State ---
-let currentMode = 1;
+// Orthographic camera for full screen shader
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-// --- Skybox ---
-const skyboxGeometry = new THREE.SphereGeometry( 500000, 60, 40 );
-const simpleSkyboxMaterial = new THREE.ShaderMaterial({
-    vertexShader: simpleSkyboxVertex,
-    fragmentShader: simpleSkyboxFragment,
-    side: THREE.BackSide
-});
-const nebulaSkyboxMaterial = new THREE.ShaderMaterial({
-    vertexShader: nebulaSkyboxVertex,
-    fragmentShader: nebulaSkyboxFragment,
-    side: THREE.BackSide
-});
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
 
-const skybox = new THREE.Mesh( skyboxGeometry, simpleSkyboxMaterial );
-scene.add( skybox );
+// --- Shader ---
 
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000000 );
+const fragmentShader = `
+    uniform float iTime;
+    uniform vec3 iResolution;
 
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize( window.innerWidth, window.innerHeight );
-renderer.toneMapping = THREE.ReinhardToneMapping;
-document.body.appendChild( renderer.domElement );
-
-// --- Post-processing ---
-const composer = new EffectComposer( renderer );
-const renderPass = new RenderPass( scene, camera );
-composer.addPass( renderPass );
-
-// Bloom Pass (Mode 2)
-const bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 );
-bloomPass.threshold = 0.5;
-bloomPass.strength = 0.1;
-bloomPass.radius = 0.5;
-bloomPass.enabled = false; // Start disabled
-composer.addPass( bloomPass );
-
-// RGB Shift Pass (Mode 1 & 2)
-const rgbShiftPass = new ShaderPass( RGBShiftShader );
-rgbShiftPass.uniforms[ 'amount' ].value = 0.0010;
-composer.addPass( rgbShiftPass );
-
-const solarSystem = new THREE.Group();
-scene.add(solarSystem);
-
-// --- Sun ---
-const sunGeometry = new THREE.SphereGeometry( 16, 64, 64 ); 
-const sunMaterialBasic = new THREE.MeshBasicMaterial( { color: '#ffb642' } ); 
-
-// Realistic Sun Material
-const sunMaterialRealistic = new THREE.ShaderMaterial({
-    vertexShader: sunVertexToon,
-    fragmentShader: sunFragmentToon,
-    uniforms: {
-        time: { value: 0 }
-    }
-});
-
-const sun = new THREE.Mesh( sunGeometry, sunMaterialBasic );
-solarSystem.add( sun );
-
-// Sun Flares (Particles)
-const flareGeometry = new THREE.BufferGeometry();
-const flareCount = 2000;
-const flarePositions = [];
-const flareRandoms = [];
-
-for (let i = 0; i < flareCount; i++) {
-    // Random point on sphere surface
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const r = 16; // Sun radius
-    
-    const x = r * Math.sin(phi) * Math.cos(theta);
-    const y = r * Math.sin(phi) * Math.sin(theta);
-    const z = r * Math.cos(phi);
-    
-    flarePositions.push(x, y, z);
-    flareRandoms.push(Math.random(), Math.random(), Math.random());
-}
-
-flareGeometry.setAttribute('position', new THREE.Float32BufferAttribute(flarePositions, 3));
-flareGeometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(flareRandoms, 3));
-
-const flareMaterial = new THREE.ShaderMaterial({
-    vertexShader: flareVertexToon,
-    fragmentShader: flareFragmentToon,
-    uniforms: {
-        time: { value: 0 }
-    },
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    transparent: true
-});
-
-const sunFlares = new THREE.Points(flareGeometry, flareMaterial);
-sunFlares.visible = false;
-solarSystem.add(sunFlares);
-
-// Sun Light (Mode 2)
-const sunLight = new THREE.PointLight( 0xffffff, 2, 1000 );
-sunLight.position.set(0, 0, 0);
-sunLight.visible = false; // Start disabled
-scene.add(sunLight);
-
-// --- Planets ---
-// Planet Data (Radius relative to Earth=0.5, Distance, Color, Speed)
-const planetData = [
-    { name: "Mercury", radius: 0.38 * 0.5, distance: 28, color: '#A5A5A5', color2: '#5A5A5A', speed: 0.02 },
-    { name: "Venus", radius: 0.95 * 0.5, distance: 44, color: '#E3BB76', color2: '#D3A050', speed: 0.015 },
-    { name: "Earth", radius: 0.5, distance: 60, color: '#22A6B3', color2: '#105060', speed: 0.01 },
-    { name: "Mars", radius: 0.53 * 0.5, distance: 78, color: '#DD4C39', color2: '#8D2C19', speed: 0.008 },
-    { name: "Jupiter", radius: 11.2 * 0.5, distance: 140, color: '#D9CDB9', color2: '#998D79', speed: 0.004 },
-    { name: "Saturn", radius: 9.45 * 0.5, distance: 200, color: '#F4D03F', color2: '#C4A01F', speed: 0.003 },
-    { name: "Uranus", radius: 4.0 * 0.5, distance: 280, color: '#7DE3F4', color2: '#4DA3B4', speed: 0.002 },
-    { name: "Neptune", radius: 3.88 * 0.5, distance: 360, color: '#3E54E8', color2: '#1E34A8', speed: 0.001 }
-];
-
-const planets = [];
-
-// Helper to create outline mesh
-function createOutline(geometry) {
-    const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
-    const outlineMesh = new THREE.Mesh(geometry, outlineMaterial);
-    outlineMesh.scale.multiplyScalar(1.05); // Scale up slightly
-    outlineMesh.visible = false; // Hidden by default
-    return outlineMesh;
-}
-
-// Sun Outline
-const sunOutline = createOutline(sunGeometry);
-sun.add(sunOutline);
-
-planetData.forEach(data => {
-    // Planet Mesh
-    const geometry = new THREE.SphereGeometry( data.radius, 32, 16 );
-    
-    // Mode 1 Material
-    const materialBasic = new THREE.MeshBasicMaterial( { color: data.color } );
-    
-    // Mode 2 Material (Shader)
-    const materialShader = new THREE.ShaderMaterial({
-        vertexShader: planetVertexToon,
-        fragmentShader: planetFragmentToon,
-        uniforms: {
-            color1: { value: new THREE.Color(data.color) },
-            color2: { value: new THREE.Color(data.color2) },
-            sunPosition: { value: new THREE.Vector3(0, 0, 0) }
+    void mainImage(out vec4 O, vec2 F)
+    {
+        //Iterator and attenuation (distance-squared)
+        float i = .2;
+        float a = 0.0;
+        
+        //Resolution for scaling and centering
+        vec2 r = iResolution.xy;
+        
+        //Centered ratio-corrected coordinates
+        vec2 p = ( F+F - r ) / r.y / .7;
+        
+        //Diagonal vector for skewing
+        vec2 d = vec2(-1,1);
+        
+        //Blackhole center
+        vec2 b = p - i*d;
+        
+        //Rotate and apply perspective
+        // c = p * mat2(1, 1, d/(.1 + i/dot(b,b)))
+        vec2 D = d/(.1 + i/dot(b,b));
+        vec2 c = p * mat2(1.0, 1.0, D.x, D.y);
+        
+        //Rotate into spiraling coordinates
+        // v = c * mat2(cos(.5*log(a=dot(c,c)) + iTime*i + vec4(0,33,11,0)))/i
+        a = dot(c,c);
+        vec4 angles = .5*log(a) + iTime*i + vec4(0,33,11,0);
+        vec4 cosAngles = cos(angles);
+        vec2 v = c * mat2(cosAngles.x, cosAngles.y, cosAngles.z, cosAngles.w) / i;
+        
+        //Waves cumulative total for coloring
+        vec2 w = vec2(0.0);
+        
+        //Loop through waves
+        // for(; i++<9.; w += 1.+sin(v) )
+        //     v += .7* sin(v.yx*i+iTime) / i + .5;
+        
+        for(int j=0; j<30; j++) {
+            i++;
+            if(i >= 9.0) break;
+            
+            v += .7* sin(v.yx*i+iTime) / i + .5;
+            w += 1.+sin(v);
         }
-    });
-
-    const planet = new THREE.Mesh( geometry, materialBasic );
-    
-    // Outline for Planet
-    const outline = createOutline(geometry);
-    planet.add(outline);
-    
-    // Orbit Group (to rotate around sun)
-    const orbit = new THREE.Object3D();
-    orbit.add(planet);
-    solarSystem.add(orbit);
-    
-    planet.position.x = data.distance;
-    
-    // Orbit Path (Ring)
-    const points = [];
-    for (let i = 0; i <= 128; i++) {
-        const angle = (i / 128) * Math.PI * 2;
-        points.push(new THREE.Vector3(Math.cos(angle) * data.distance, 0, Math.sin(angle) * data.distance));
+        
+        //Acretion disk radius
+        i = length( sin(v/.3)*.4 + c*(3.+d) );
+        
+        //Red/blue gradient
+        O = 1. - exp( -exp( c.x * vec4(.6,-.4,-1,0) )
+                       //Wave coloring
+                       /  w.xyyx
+                       //Acretion disk brightness
+                       / ( 2. + i*i/4. - i )
+                       //Center darkness
+                       / ( .5 + 1. / a )
+                       //Rim highlight
+                       / ( .03 + abs( length(p)-.7 ) )
+                 );
     }
-    const lineGeometry = new THREE.BufferGeometry().setFromPoints( points );
-    const lineMaterial = new THREE.LineBasicMaterial( { color: 0xffffff, transparent: true, opacity: 0.1 } );
-    const ring = new THREE.LineLoop( lineGeometry, lineMaterial );
-    solarSystem.add( ring );
 
-    planets.push({ 
-        mesh: planet, 
-        orbit: orbit, 
-        speed: data.speed,
-        materialBasic: materialBasic,
-        materialShader: materialShader,
-        outline: outline
-    });
+    void main() {
+        mainImage(gl_FragColor, gl_FragCoord.xy);
+    }
+`;
+
+const vertexShader = `
+    void main() {
+        gl_Position = vec4(position, 1.0);
+    }
+`;
+
+// --- Object Creation ---
+
+const geometry = new THREE.PlaneGeometry(2, 2);
+const material = new THREE.ShaderMaterial({
+    vertexShader,
+    fragmentShader,
+    uniforms: {
+        iTime: { value: 0 },
+        iResolution: { value: new THREE.Vector3(window.innerWidth, window.innerHeight, 1) }
+    }
 });
 
-// Add OrbitControls
-const controls = new OrbitControls( camera, renderer.domElement );
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
+const plane = new THREE.Mesh(geometry, material);
+scene.add(plane);
 
-camera.position.set(0, 140, 280);
-camera.lookAt(0, 0, 0);
+// --- Event Listeners ---
 
-// --- Mode Switching Logic ---
-function setMode(mode) {
-    currentMode = mode;
-    
-    if (mode === 1) {
-        // Mode 1: Simple
-        skybox.material = simpleSkyboxMaterial;
-        sun.material = sunMaterialBasic;
-        sunFlares.visible = false;
-        sunLight.visible = false;
-        bloomPass.enabled = false;
-        rgbShiftPass.uniforms[ 'amount' ].value = 0.0010;
-        
-        // Hide Outlines
-        sunOutline.visible = false;
-        
-        planets.forEach(p => {
-            p.mesh.material = p.materialBasic;
-            p.outline.visible = false;
-        });
-        
-        document.getElementById('mode1').classList.add('active');
-        document.getElementById('mode2').classList.remove('active');
-    } else {
-        // Mode 2: Toon / Cel Shaded
-        skybox.material = nebulaSkyboxMaterial;
-        sun.material = sunMaterialRealistic;
-        sunFlares.visible = false; // No flares in toon mode
-        sunLight.visible = true;
-        bloomPass.enabled = false; // No bloom in toon mode
-        rgbShiftPass.uniforms[ 'amount' ].value = 0.0;
-        
-        // Show Outlines
-        sunOutline.visible = true;
-        
-        planets.forEach(p => {
-            p.mesh.material = p.materialShader;
-            p.outline.visible = true;
-        });
-        
-        document.getElementById('mode1').classList.remove('active');
-        document.getElementById('mode2').classList.add('active');
-    }
-}
+window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    material.uniforms.iResolution.value.set(window.innerWidth, window.innerHeight, 1);
+});
 
-// Event Listeners
-document.getElementById('mode1').addEventListener('click', () => setMode(1));
-document.getElementById('mode2').addEventListener('click', () => setMode(2));
+// --- Animation Loop ---
+
+const clock = new THREE.Clock();
 
 function animate() {
-	requestAnimationFrame( animate );
-    
-    const time = performance.now() * 0.001;
-    
-    // Update uniforms
-    sunMaterialRealistic.uniforms.time.value = time;
-    flareMaterial.uniforms.time.value = time;
-    
-    planets.forEach(p => {
-        p.orbit.rotation.y += p.speed;
-    });
-
-    controls.update();
-
-	composer.render();
+    requestAnimationFrame(animate);
+    material.uniforms.iTime.value = clock.getElapsedTime();
+    renderer.render(scene, camera);
 }
 
 animate();
-
-// Handle window resize
-window.addEventListener('resize', onWindowResize, false);
-
-function onWindowResize(){
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize( window.innerWidth, window.innerHeight );
-    composer.setSize( window.innerWidth, window.innerHeight );
-}
