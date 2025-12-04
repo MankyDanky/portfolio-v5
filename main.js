@@ -115,6 +115,14 @@ canvas.addEventListener('mouseleave', () => {
     mouse[2] = 0;
 });
 
+// Trigger curtain reveal on load
+window.addEventListener('load', () => {
+    // Small delay to ensure everything is ready and to make the effect noticeable
+    setTimeout(() => {
+        document.body.classList.add('revealed');
+    }, 200);
+});
+
 function render() {
     const time = (Date.now() - startTime) / 1000;
 
