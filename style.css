@@ -1,13 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap');
+
 body {
     margin: 0;
     padding: 0;
     overflow: hidden;
     background-color: #050505;
-    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Open Sans', sans-serif;
     color: white;
 }
 
-#canvas-container {
+#canvas {
     position: fixed;
     top: 0;
     left: 0;
@@ -16,25 +18,44 @@ body {
     z-index: 1;
 }
 
-.ui-overlay {
+.center-text {
+    color: rgb(255, 255, 255);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    font-weight: 300;
+    font-size: 50px;
+    letter-spacing: 0.6em;
+    text-align: center;
+    pointer-events: none; /* Let clicks pass through to canvas if needed */
+    white-space: nowrap;
+    text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 0 40px rgba(0,0,0,0.5);
+}
+
+.bottom-nav {
     position: absolute;
     bottom: 40px;
-    left: 40px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
     z-index: 2;
-    pointer-events: none;
-    opacity: 0.7;
 }
 
-h1 {
-    font-weight: 300;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    font-size: 14px;
-    margin: 0 0 8px 0;
-}
-
-p {
+.bottom-nav a {
+    color: white;
+    text-decoration: none;
     font-size: 12px;
-    color: #888;
-    margin: 0;
+    letter-spacing: 0.2em;
+    font-weight: 400;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
 }
+
+.bottom-nav a:hover {
+    opacity: 1;
+}
+

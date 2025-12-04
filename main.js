@@ -1,125 +1,137 @@
-import * as THREE from 'three';
+const canvas = document.getElementById('canvas');
+const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
 
-// --- Scene Setup ---
-const container = document.getElementById('canvas-container');
-const scene = new THREE.Scene();
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
 
-// Orthographic camera for full screen shader
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const vertexShaderSource = `
+    attribute vec2 position;
+    void main() {
+        gl_Position = vec4(position, 0.0, 1.0);
+    }
+`;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-container.appendChild(renderer.domElement);
-
-// --- Shader ---
-
-const fragmentShader = `
+const fragmentShaderSource = `
+    precision highp float;
+    uniform vec2 iResolution;
     uniform float iTime;
-    uniform vec3 iResolution;
+    uniform vec4 iMouse;
 
-    void mainImage(out vec4 O, vec2 F)
-    {
-        //Iterator and attenuation (distance-squared)
-        float i = .2;
-        float a = 0.0;
+    void main() {
+        vec2 F = gl_FragCoord.xy;
+        vec4 O;
         
-        //Resolution for scaling and centering
-        vec2 r = iResolution.xy;
+        // centered, aspect-correct coordinates
+        vec2 p = (F*2. - iResolution.xy) / (iResolution.y * .7);
         
-        //Centered ratio-corrected coordinates
-        vec2 p = ( F+F - r ) / r.y / .7;
+        // camera / effect rotation from mouse X
+        float mx = iMouse.z > 0.0 ? (iMouse.x / iResolution.x) : 0.5;
+        float my = iMouse.z > 0.0 ? (iMouse.y / iResolution.y) : 0.5;
+        float yRange = mix(0.9, 1.1, my);
+        float xRange = mix(0.9, 1.1, mx);
         
-        //Diagonal vector for skewing
-        vec2 d = vec2(-1,1);
+        float angle = mix(-0.05, 0.05, mx);
+        float ca = cos(angle);
+        float sa = sin(angle);
+        mat2 R = mat2(ca, -sa, sa, ca);
         
-        //Blackhole center
-        vec2 b = p - i*d;
+        vec2 pr = p;
+        vec2 d = vec2(0.0, 1.0);
+        vec2 c = pr * mat2(1., 1., d / (.1 + 5. / dot(5.*pr - d, 5.*pr - d)));
+        vec2 v = c;
+        v *= mat2(cos(log(length(v)) + iTime*.2 + vec4(0,33,11,0))) * 5.;
         
-        //Rotate and apply perspective
-        // c = p * mat2(1, 1, d/(.1 + i/dot(b,b)))
-        vec2 D = d/(.1 + i/dot(b,b));
-        vec2 c = p * mat2(1.0, 1.0, D.x, D.y);
-        
-        //Rotate into spiraling coordinates
-        // v = c * mat2(cos(.5*log(a=dot(c,c)) + iTime*i + vec4(0,33,11,0)))/i
-        a = dot(c,c);
-        vec4 angles = .5*log(a) + iTime*i + vec4(0,33,11,0);
-        vec4 cosAngles = cos(angles);
-        vec2 v = c * mat2(cosAngles.x, cosAngles.y, cosAngles.z, cosAngles.w) / i;
-        
-        //Waves cumulative total for coloring
-        vec2 w = vec2(0.0);
-        
-        //Loop through waves
-        // for(; i++<9.; w += 1.+sin(v) )
-        //     v += .7* sin(v.yx*i+iTime) / i + .5;
-        
-        for(int j=0; j<30; j++) {
-            i++;
-            if(i >= 9.0) break;
-            
-            v += .7* sin(v.yx*i+iTime) / i + .5;
-            w += 1.+sin(v);
+        vec4 o = vec4(0.0);
+        for (float i = 1.0; i < 10.0; i++) {
+            o += sin(v.xyyx) + yRange;
+            v += .7 * sin(v.yx * i + iTime) / i + .5;
         }
         
-        //Acretion disk radius
-        i = length( sin(v/.3)*.4 + c*(3.+d) );
+        float radial = length(pr);
+        O = 1. - exp(
+            -exp(vec4(-.6,-.4,0.5,0)) / o
+            / (.1 + .1 * pow(length(sin(v/.3)*.2 + c*vec2(1,2)) - 1., 2.))
+            / (1. * xRange + 5. * exp(.3*c.y - dot(c,c)))
+            / (.03 + abs(radial - .7)) * .2
+        );
         
-        //Red/blue gradient
-        O = 1. - exp( -exp( c.x * vec4(.6,-.4,-1,0) )
-                       //Wave coloring
-                       /  w.xyyx
-                       //Acretion disk brightness
-                       / ( 2. + i*i/4. - i )
-                       //Center darkness
-                       / ( .5 + 1. / a )
-                       //Rim highlight
-                       / ( .03 + abs( length(p)-.7 ) )
-                 );
-    }
-
-    void main() {
-        mainImage(gl_FragColor, gl_FragCoord.xy);
+        gl_FragColor = O;
     }
 `;
 
-const vertexShader = `
-    void main() {
-        gl_Position = vec4(position, 1.0);
+function createShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
     }
-`;
-
-// --- Object Creation ---
-
-const geometry = new THREE.PlaneGeometry(2, 2);
-const material = new THREE.ShaderMaterial({
-    vertexShader,
-    fragmentShader,
-    uniforms: {
-        iTime: { value: 0 },
-        iResolution: { value: new THREE.Vector3(window.innerWidth, window.innerHeight, 1) }
-    }
-});
-
-const plane = new THREE.Mesh(geometry, material);
-scene.add(plane);
-
-// --- Event Listeners ---
-
-window.addEventListener('resize', () => {
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    material.uniforms.iResolution.value.set(window.innerWidth, window.innerHeight, 1);
-});
-
-// --- Animation Loop ---
-
-const clock = new THREE.Clock();
-
-function animate() {
-    requestAnimationFrame(animate);
-    material.uniforms.iTime.value = clock.getElapsedTime();
-    renderer.render(scene, camera);
+    return shader;
 }
 
-animate();
+const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+const program = gl.createProgram();
+gl.attachShader(program, vertexShader);
+gl.attachShader(program, fragmentShader);
+gl.linkProgram(program);
+
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(program));
+}
+
+const positionLocation = gl.getAttribLocation(program, 'position');
+const resolutionLocation = gl.getUniformLocation(program, 'iResolution');
+const timeLocation = gl.getUniformLocation(program, 'iTime');
+const mouseLocation = gl.getUniformLocation(program, 'iMouse');
+
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1, -1,
+    1, -1,
+    -1, 1,
+    1, 1
+]), gl.STATIC_DRAW);
+
+let startTime = Date.now();
+let mouse = [0, 0, 0, 0];
+
+canvas.addEventListener('mousemove', (e) => {
+    mouse[0] = (e.clientX)/2;
+    mouse[1] = (canvas.height - e.clientY)/2;
+    mouse[2] = 1;
+});
+
+canvas.addEventListener('mouseleave', () => {
+    mouse[2] = 0;
+});
+
+function render() {
+    const time = (Date.now() - startTime) / 1000;
+
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(program);
+
+    gl.enableVertexAttribArray(positionLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+    gl.uniform1f(timeLocation, time);
+    gl.uniform4f(mouseLocation, mouse[0], mouse[1], mouse[2], mouse[3]);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    requestAnimationFrame(render);
+}
+
+render();
