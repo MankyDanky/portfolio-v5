@@ -26,12 +26,12 @@ body {
     transform: translate(-50%, -50%);
     z-index: 2;
     font-weight: 300;
-    font-size: 50px;
-    letter-spacing: 0.6em;
+    font-size: clamp(20px, 4.5vw, 50px);
+    letter-spacing: 0.5em;
     text-align: center;
     pointer-events: none; /* Let clicks pass through to canvas if needed */
     white-space: nowrap;
-    text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 0 40px rgba(0,0,0,0.5);
+    text-shadow: 0 0 20px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.9);
     
     /* Animation Initial State */
     opacity: 0;
@@ -60,7 +60,7 @@ body.revealed .center-text {
     color: white;
     text-decoration: none;
     font-size: 12px;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.4em;
     font-weight: 400;
     opacity: 0.8;
     transition: opacity 0.2s ease;
