@@ -1,288 +1,240 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
+const canvas = document.getElementById('canvas');
+const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
 
-import { simpleSkyboxVertex, simpleSkyboxFragment } from './shaders/simpleSkybox.js';
-import { nebulaSkyboxVertex, nebulaSkyboxFragment } from './shaders/nebulaSkybox.js';
-import { planetVertexToon, planetFragmentToon } from './shaders/planetShader.js';
-import { sunVertexToon, sunFragmentToon, flareVertexToon, flareFragmentToon } from './shaders/sunShader.js';
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
 
-const scene = new THREE.Scene();
-
-// --- Mode State ---
-let currentMode = 1;
-
-// --- Skybox ---
-const skyboxGeometry = new THREE.SphereGeometry( 500000, 60, 40 );
-const simpleSkyboxMaterial = new THREE.ShaderMaterial({
-    vertexShader: simpleSkyboxVertex,
-    fragmentShader: simpleSkyboxFragment,
-    side: THREE.BackSide
-});
-const nebulaSkyboxMaterial = new THREE.ShaderMaterial({
-    vertexShader: nebulaSkyboxVertex,
-    fragmentShader: nebulaSkyboxFragment,
-    side: THREE.BackSide
-});
-
-const skybox = new THREE.Mesh( skyboxGeometry, simpleSkyboxMaterial );
-scene.add( skybox );
-
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000000 );
-
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize( window.innerWidth, window.innerHeight );
-renderer.toneMapping = THREE.ReinhardToneMapping;
-document.body.appendChild( renderer.domElement );
-
-// --- Post-processing ---
-const composer = new EffectComposer( renderer );
-const renderPass = new RenderPass( scene, camera );
-composer.addPass( renderPass );
-
-// Bloom Pass (Mode 2)
-const bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 );
-bloomPass.threshold = 0.5;
-bloomPass.strength = 0.1;
-bloomPass.radius = 0.5;
-bloomPass.enabled = false; // Start disabled
-composer.addPass( bloomPass );
-
-// RGB Shift Pass (Mode 1 & 2)
-const rgbShiftPass = new ShaderPass( RGBShiftShader );
-rgbShiftPass.uniforms[ 'amount' ].value = 0.0010;
-composer.addPass( rgbShiftPass );
-
-const solarSystem = new THREE.Group();
-scene.add(solarSystem);
-
-// --- Sun ---
-const sunGeometry = new THREE.SphereGeometry( 16, 64, 64 ); 
-const sunMaterialBasic = new THREE.MeshBasicMaterial( { color: '#ffb642' } ); 
-
-// Realistic Sun Material
-const sunMaterialRealistic = new THREE.ShaderMaterial({
-    vertexShader: sunVertexToon,
-    fragmentShader: sunFragmentToon,
-    uniforms: {
-        time: { value: 0 }
+const vertexShaderSource = `
+    attribute vec2 position;
+    void main() {
+        gl_Position = vec4(position, 0.0, 1.0);
     }
-});
+`;
 
-const sun = new THREE.Mesh( sunGeometry, sunMaterialBasic );
-solarSystem.add( sun );
+const fragmentShaderSource = `
+    precision highp float;
+    uniform vec2 iResolution;
+    uniform float iTime;
+    uniform vec4 iMouse;
 
-// Sun Flares (Particles)
-const flareGeometry = new THREE.BufferGeometry();
-const flareCount = 2000;
-const flarePositions = [];
-const flareRandoms = [];
-
-for (let i = 0; i < flareCount; i++) {
-    // Random point on sphere surface
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const r = 16; // Sun radius
-    
-    const x = r * Math.sin(phi) * Math.cos(theta);
-    const y = r * Math.sin(phi) * Math.sin(theta);
-    const z = r * Math.cos(phi);
-    
-    flarePositions.push(x, y, z);
-    flareRandoms.push(Math.random(), Math.random(), Math.random());
-}
-
-flareGeometry.setAttribute('position', new THREE.Float32BufferAttribute(flarePositions, 3));
-flareGeometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(flareRandoms, 3));
-
-const flareMaterial = new THREE.ShaderMaterial({
-    vertexShader: flareVertexToon,
-    fragmentShader: flareFragmentToon,
-    uniforms: {
-        time: { value: 0 }
-    },
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    transparent: true
-});
-
-const sunFlares = new THREE.Points(flareGeometry, flareMaterial);
-sunFlares.visible = false;
-solarSystem.add(sunFlares);
-
-// Sun Light (Mode 2)
-const sunLight = new THREE.PointLight( 0xffffff, 2, 1000 );
-sunLight.position.set(0, 0, 0);
-sunLight.visible = false; // Start disabled
-scene.add(sunLight);
-
-// --- Planets ---
-// Planet Data (Radius relative to Earth=0.5, Distance, Color, Speed)
-const planetData = [
-    { name: "Mercury", radius: 0.38 * 0.5, distance: 28, color: '#A5A5A5', color2: '#5A5A5A', speed: 0.02 },
-    { name: "Venus", radius: 0.95 * 0.5, distance: 44, color: '#E3BB76', color2: '#D3A050', speed: 0.015 },
-    { name: "Earth", radius: 0.5, distance: 60, color: '#22A6B3', color2: '#105060', speed: 0.01 },
-    { name: "Mars", radius: 0.53 * 0.5, distance: 78, color: '#DD4C39', color2: '#8D2C19', speed: 0.008 },
-    { name: "Jupiter", radius: 11.2 * 0.5, distance: 140, color: '#D9CDB9', color2: '#998D79', speed: 0.004 },
-    { name: "Saturn", radius: 9.45 * 0.5, distance: 200, color: '#F4D03F', color2: '#C4A01F', speed: 0.003 },
-    { name: "Uranus", radius: 4.0 * 0.5, distance: 280, color: '#7DE3F4', color2: '#4DA3B4', speed: 0.002 },
-    { name: "Neptune", radius: 3.88 * 0.5, distance: 360, color: '#3E54E8', color2: '#1E34A8', speed: 0.001 }
-];
-
-const planets = [];
-
-// Helper to create outline mesh
-function createOutline(geometry) {
-    const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
-    const outlineMesh = new THREE.Mesh(geometry, outlineMaterial);
-    outlineMesh.scale.multiplyScalar(1.05); // Scale up slightly
-    outlineMesh.visible = false; // Hidden by default
-    return outlineMesh;
-}
-
-// Sun Outline
-const sunOutline = createOutline(sunGeometry);
-sun.add(sunOutline);
-
-planetData.forEach(data => {
-    // Planet Mesh
-    const geometry = new THREE.SphereGeometry( data.radius, 32, 16 );
-    
-    // Mode 1 Material
-    const materialBasic = new THREE.MeshBasicMaterial( { color: data.color } );
-    
-    // Mode 2 Material (Shader)
-    const materialShader = new THREE.ShaderMaterial({
-        vertexShader: planetVertexToon,
-        fragmentShader: planetFragmentToon,
-        uniforms: {
-            color1: { value: new THREE.Color(data.color) },
-            color2: { value: new THREE.Color(data.color2) },
-            sunPosition: { value: new THREE.Vector3(0, 0, 0) }
+    void main() {
+        vec2 F = gl_FragCoord.xy;
+        vec4 O;
+        
+        // centered, aspect-correct coordinates
+        vec2 p = (F*2. - iResolution.xy) / (iResolution.y * .7);
+        
+        // camera / effect rotation from mouse X
+        float mx = iMouse.z > 0.0 ? (iMouse.x / iResolution.x) : 0.5;
+        float my = iMouse.z > 0.0 ? (iMouse.y / iResolution.y) : 0.5;
+        float yRange = mix(0.9, 1.1, my);
+        float xRange = mix(0.9, 1.1, mx);
+        
+        float angle = mix(-0.05, 0.05, mx);
+        float ca = cos(angle);
+        float sa = sin(angle);
+        mat2 R = mat2(ca, -sa, sa, ca);
+        
+        vec2 pr = p;
+        vec2 d = vec2(0.0, 1.0);
+        vec2 c = pr * mat2(1., 1., d / (.1 + 5. / dot(5.*pr - d, 5.*pr - d)));
+        vec2 v = c;
+        v *= mat2(cos(log(length(v)) + iTime*.2 + vec4(0,33,11,0))) * 5.;
+        
+        vec4 o = vec4(0.0);
+        for (float i = 1.0; i < 10.0; i++) {
+            o += sin(v.xyyx) + yRange;
+            v += .7 * sin(v.yx * i + iTime) / i + .5;
         }
-    });
-
-    const planet = new THREE.Mesh( geometry, materialBasic );
-    
-    // Outline for Planet
-    const outline = createOutline(geometry);
-    planet.add(outline);
-    
-    // Orbit Group (to rotate around sun)
-    const orbit = new THREE.Object3D();
-    orbit.add(planet);
-    solarSystem.add(orbit);
-    
-    planet.position.x = data.distance;
-    
-    // Orbit Path (Ring)
-    const points = [];
-    for (let i = 0; i <= 128; i++) {
-        const angle = (i / 128) * Math.PI * 2;
-        points.push(new THREE.Vector3(Math.cos(angle) * data.distance, 0, Math.sin(angle) * data.distance));
+        
+        float radial = length(pr);
+        O = 1. - exp(
+            -exp(vec4(-.6,-.4,0.5,0)) / o
+            / (.1 + .1 * pow(length(sin(v/.3)*.2 + c*vec2(1,2)) - 1., 2.))
+            / (1. * xRange + 5. * exp(.3*c.y - dot(c,c)))
+            / (.03 + abs(radial - .7)) * .2
+        );
+        
+        gl_FragColor = O;
     }
-    const lineGeometry = new THREE.BufferGeometry().setFromPoints( points );
-    const lineMaterial = new THREE.LineBasicMaterial( { color: 0xffffff, transparent: true, opacity: 0.1 } );
-    const ring = new THREE.LineLoop( lineGeometry, lineMaterial );
-    solarSystem.add( ring );
+`;
 
-    planets.push({ 
-        mesh: planet, 
-        orbit: orbit, 
-        speed: data.speed,
-        materialBasic: materialBasic,
-        materialShader: materialShader,
-        outline: outline
-    });
+function createShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+    }
+    return shader;
+}
+
+const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+const program = gl.createProgram();
+gl.attachShader(program, vertexShader);
+gl.attachShader(program, fragmentShader);
+gl.linkProgram(program);
+
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(program));
+}
+
+const positionLocation = gl.getAttribLocation(program, 'position');
+const resolutionLocation = gl.getUniformLocation(program, 'iResolution');
+const timeLocation = gl.getUniformLocation(program, 'iTime');
+const mouseLocation = gl.getUniformLocation(program, 'iMouse');
+
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1, -1,
+    1, -1,
+    -1, 1,
+    1, 1
+]), gl.STATIC_DRAW);
+
+let startTime = Date.now();
+let mouse = [0, 0, 0, 0];
+
+canvas.addEventListener('mousemove', (e) => {
+    mouse[0] = (e.clientX)/2;
+    mouse[1] = (canvas.height - e.clientY)/2;
+    mouse[2] = 1;
 });
 
-// Add OrbitControls
-const controls = new OrbitControls( camera, renderer.domElement );
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
+canvas.addEventListener('mouseleave', () => {
+    mouse[2] = 0;
+});
 
-camera.position.set(0, 140, 280);
-camera.lookAt(0, 0, 0);
+// --- Audio Management ---
 
-// --- Mode Switching Logic ---
-function setMode(mode) {
-    currentMode = mode;
+const audio = new Audio('piano.mp3');
+audio.loop = true;
+audio.volume = 0; // Start silent
+
+let fadeInterval;
+
+function fadeAudio(targetVolume, duration, callback) {
+    const startVolume = audio.volume;
+    const change = targetVolume - startVolume;
+    const startTime = performance.now();
+
+    clearInterval(fadeInterval);
+
+    fadeInterval = setInterval(() => {
+        const elapsed = performance.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Simple linear fade
+        audio.volume = Math.max(0, Math.min(1, startVolume + (change * progress)));
+
+        if (progress >= 1) {
+            clearInterval(fadeInterval);
+            if (callback) callback();
+        }
+    }, 50);
+}
+
+function playMusic() {
+    // If already playing and fading in, don't restart
+    if (!audio.paused && audio.volume > 0) return;
+
+    const playPromise = audio.play();
     
-    if (mode === 1) {
-        // Mode 1: Simple
-        skybox.material = simpleSkyboxMaterial;
-        sun.material = sunMaterialBasic;
-        sunFlares.visible = false;
-        sunLight.visible = false;
-        bloomPass.enabled = false;
-        rgbShiftPass.uniforms[ 'amount' ].value = 0.0010;
-        
-        // Hide Outlines
-        sunOutline.visible = false;
-        
-        planets.forEach(p => {
-            p.mesh.material = p.materialBasic;
-            p.outline.visible = false;
+    if (playPromise !== undefined) {
+        playPromise.then(() => {
+            // Fade in to 50% volume over 2 seconds
+            fadeAudio(0.5, 2000);
+        }).catch(error => {
+            console.log("Autoplay prevented. Waiting for interaction.");
+            // Add one-time listener to start on interaction
+            const startOnInteraction = () => {
+                audio.play();
+                fadeAudio(0.5, 2000);
+                window.removeEventListener('click', startOnInteraction);
+                window.removeEventListener('keydown', startOnInteraction);
+                window.removeEventListener('mousemove', startOnInteraction);
+            };
+            window.addEventListener('click', startOnInteraction);
+            window.addEventListener('keydown', startOnInteraction);
+            window.addEventListener('mousemove', startOnInteraction);
         });
-        
-        document.getElementById('mode1').classList.add('active');
-        document.getElementById('mode2').classList.remove('active');
-    } else {
-        // Mode 2: Toon / Cel Shaded
-        skybox.material = nebulaSkyboxMaterial;
-        sun.material = sunMaterialRealistic;
-        sunFlares.visible = false; // No flares in toon mode
-        sunLight.visible = true;
-        bloomPass.enabled = false; // No bloom in toon mode
-        rgbShiftPass.uniforms[ 'amount' ].value = 0.0;
-        
-        // Show Outlines
-        sunOutline.visible = true;
-        
-        planets.forEach(p => {
-            p.mesh.material = p.materialShader;
-            p.outline.visible = true;
-        });
-        
-        document.getElementById('mode1').classList.remove('active');
-        document.getElementById('mode2').classList.add('active');
     }
 }
 
-// Event Listeners
-document.getElementById('mode1').addEventListener('click', () => setMode(1));
-document.getElementById('mode2').addEventListener('click', () => setMode(2));
-
-function animate() {
-	requestAnimationFrame( animate );
-    
-    const time = performance.now() * 0.001;
-    
-    // Update uniforms
-    sunMaterialRealistic.uniforms.time.value = time;
-    flareMaterial.uniforms.time.value = time;
-    
-    planets.forEach(p => {
-        p.orbit.rotation.y += p.speed;
+function pauseMusic() {
+    // Fade out to 0 over 1 second, then pause
+    fadeAudio(0, 1000, () => {
+        audio.pause();
     });
-
-    controls.update();
-
-	composer.render();
 }
 
-animate();
+// Start music when the curtain reveals (using the existing load event timing)
+// window.addEventListener('load', () => {
+//     setTimeout(() => {
+//         playMusic();
+//     }, 500);
+// });
 
-// Handle window resize
-window.addEventListener('resize', onWindowResize, false);
+// // Trigger curtain reveal on load
+// window.addEventListener('load', () => {
+//     // Small delay to ensure everything is ready and to make the effect noticeable
+//     setTimeout(() => {
+//         document.body.classList.add('revealed');
+//     }, 500);
+// });
 
-function onWindowResize(){
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize( window.innerWidth, window.innerHeight );
-    composer.setSize( window.innerWidth, window.innerHeight );
+// --- Interaction ---
+
+const enterOverlay = document.getElementById('enter-overlay');
+
+enterOverlay.addEventListener('click', () => {
+    enterOverlay.classList.add('hidden');
+    
+    // Start music immediately on interaction
+    playMusic();
+    
+    // Trigger curtain reveal
+    setTimeout(() => {
+        document.body.classList.add('revealed');
+    }, 200);
+});
+
+// Handle tab switching
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        pauseMusic();
+    } else {
+        playMusic();
+    }
+});
+
+function render() {
+    const time = (Date.now() - startTime) / 1000;
+
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(program);
+
+    gl.enableVertexAttribArray(positionLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+    gl.uniform1f(timeLocation, time);
+    gl.uniform4f(mouseLocation, mouse[0], mouse[1], mouse[2], mouse[3]);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    requestAnimationFrame(render);
 }
+
+render();
