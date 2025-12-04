@@ -27,7 +27,7 @@ const fragmentShaderSource = `
         vec4 O;
         
         // centered, aspect-correct coordinates
-        vec2 p = (F*2. - iResolution.xy) / (iResolution.y * .7);
+        vec2 p = (F*2. - iResolution.xy) / (iResolution.x * 0.4);
         
         // camera / effect rotation from mouse X
         float mx = iMouse.z > 0.0 ? (iMouse.x / iResolution.x) : 0.5;
