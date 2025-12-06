@@ -1,0 +1,2 @@
+# Portfolio Website
+This is hopefully my last portfolio website. In total its <400 lines of code, and uses a webgl shader for the background. Credit to XorDev on ShaderToy for the tutorial on how to create that effect in the background.
